@@ -32,6 +32,10 @@ class User(Base):
         username (str): Имя пользователя.
         first_name (str): Имя пользователя.
         last_name (str): Фамилия пользователя.
+        first_seen (datetime): Когда пользователь впервые использовал бота.
+        last_activity (datetime): Последняя активность пользователя.
+        survey_completed (bool): Завершил ли пользователь опрос.
+        active_days (int): Количество дней активности.
     """
 
     __tablename__ = "users"
@@ -40,6 +44,10 @@ class User(Base):
     username = mapped_column(String(255))
     first_name = mapped_column(String(255))
     last_name = mapped_column(String(255))
+    first_seen = mapped_column(DateTime, default=datetime.utcnow)
+    last_activity = mapped_column(DateTime, default=datetime.utcnow)
+    survey_completed = mapped_column(Boolean, default=False)
+    active_days = mapped_column(Integer, default=1)  # Счетчик дней активности
 
 
 class UserSurvey(Base):

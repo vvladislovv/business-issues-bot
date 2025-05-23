@@ -2,7 +2,6 @@ from aiogram.utils.keyboard import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
     ReplyKeyboardMarkup,
-    KeyboardButton,
 )
 from src.utils.logging import write_logs
 from aiogram.types import InlineKeyboardButton as TypesInlineKeyboardButton
@@ -26,20 +25,35 @@ async def get_general_menu() -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-
-async def get_admin_keyboard() -> InlineKeyboardMarkup:
-    """
-    Создает клавиатуру для администраторов с кнопкой для просмотра статистики.
-
-    Returns:
-        InlineKeyboardMarkup: Клавиатура с кнопкой статистики.
-    """
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")]
-        ]
+async def get_mailing_keyboard() -> InlineKeyboardMarkup:
+    """Создает клавиатуру для рассылки."""
+    keyboard = InlineKeyboardMarkup(row_width=1)
+    keyboard.add(
+        InlineKeyboardButton(text="✅ Подтвердить рассылку", callback_data="confirm_mailing"),
+        InlineKeyboardButton(text="❌ Отменить рассылку", callback_data="cancel_mailing"),
     )
     return keyboard
+
+async def get_admin_keyboard() -> InlineKeyboardMarkup:
+    """Создает клавиатуру для администратора.
+
+    Returns:
+        InlineKeyboardMarkup: Клавиатура с кнопками администратора.
+    """
+    keyboard = [
+        [
+            TypesInlineKeyboardButton(
+                text="📊 Статистика активности", callback_data="admin_activity_stats"
+            )
+        ],
+        [
+            TypesInlineKeyboardButton(
+                text="👥 Статистика пользователей", callback_data="admin_user_stats"
+            )
+        ],
+        [TypesInlineKeyboardButton(text="📨 Рассылка", callback_data="admin_mailing")],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
 async def get_keyboard(options: list[str] | None = None) -> InlineKeyboardMarkup | None:

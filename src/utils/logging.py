@@ -27,7 +27,7 @@ async def write_logs(TypeLog: str, message: str) -> None:
         # Создаем запись лога
         log_data = {"level": TypeLog, "message": message}
         log_entry = LogsJson(data=log_data)
-        print(log_entry)
+        print(f"{log_entry.data['level']}  {log_entry.data['message']} {log_entry.created_at}")
         
     except Exception as e:
-        print(f"Logging error: {str(e)}")
+        print(f"Ошибка логирования: {str(e)}")

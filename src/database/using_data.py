@@ -1,25 +1,24 @@
 import json
-
-from src.utils.formater import format_user_survey_results
-from .settings_data import User, create_session, UserSurvey
-from sqlalchemy import select
+from datetime import datetime
+from sqlalchemy import select, and_
 from typing import List, Optional
+from src.utils.formater import format_user_survey_results
 from src.utils.logging import write_logs
+from .settings_data import User, create_session, UserSurvey
 
 
 async def get_all_users() -> List[User]:
     """Получает всех пользователей из базы данных.
 
     Returns:
-        List[User]: Список объектов User, представляющих всех пользователей.
+        List[User]: Список всех пользователей
     """
     async with create_session() as session:
         try:
-            stmt = select(User)
-            result = await session.execute(stmt)
+            result = await session.execute(select(User))
             return result.scalars().all()
         except Exception as e:
-            await write_logs("error", f"Error getting users: {str(e)}")
+            await write_logs("error", f"Error getting all users: {str(e)}")
             return []
 
 
@@ -156,44 +155,6 @@ async def get_or_create_user(user_id: int, username: str) -> User:
             raise
 
 
-async def get_survey_statistics():
-    """Получает статистику по завершенным опросам.
-
-    Returns:
-        dict: Словарь со статистикой, включая общее количество ответов и другие метрики.
-    """
-    async with create_session() as session:
-        try:
-            # Get all completed surveys
-            stmt = select(UserSurvey).where(UserSurvey.survey_completed == True)
-            result = await session.execute(stmt)
-            surveys = result.scalars().all()
-
-            stats = {
-                "total_responses": len(surveys),
-                "has_business": {
-                    "Да": 0,
-                    "Нет, но планирую": 0,
-                    "Нет и не планирую": 0,
-                },
-                "is_under_25": {"Да": 0, "Нет": 0},
-                # Add other fields as needed
-            }
-
-            for survey in surveys:
-                if survey.has_business:
-                    stats["has_business"][survey.has_business] += 1
-                if survey.is_under_25:
-                    stats["is_under_25"][survey.is_under_25] += 1
-                # Add other fields counting
-
-            return stats
-
-        except Exception as e:
-            await write_logs("error", f"Error getting survey statistics: {str(e)}")
-            return None
-
-
 async def finalize_survey(user_id: int, username: str) -> Optional[str]:
     """Завершает опрос пользователя и отправляет результаты в канал.
 
@@ -220,6 +181,18 @@ async def finalize_survey(user_id: int, username: str) -> Optional[str]:
             if survey:
                 # Отмечаем опрос как завершенный
                 survey.survey_completed = True
+
+                # Получаем и обновляем пользователя
+                user_stmt = select(User).where(User.user_id == user_id)
+                user = (await session.execute(user_stmt)).scalar_one_or_none()
+                if user:
+                    user.survey_completed = True
+                    user.last_activity = datetime.utcnow()
+
+                    # Обновляем счетчик дней активности
+                    if (datetime.utcnow() - user.last_activity).days >= 1:
+                        user.active_days += 1
+
                 await session.commit()
 
                 # Форматируем результаты опроса
