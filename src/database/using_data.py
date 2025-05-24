@@ -1,10 +1,10 @@
 import json
-from datetime import datetime
-from sqlalchemy import select, and_
+from datetime import datetime, timedelta
+from sqlalchemy import select, and_, func
 from typing import List, Optional
 from src.utils.formater import format_user_survey_results
 from src.utils.logging import write_logs
-from .settings_data import User, create_session, UserSurvey
+from .settings_data import User, create_session, UserSurvey, UserActivity
 
 
 async def get_all_users() -> List[User]:
@@ -125,6 +125,98 @@ async def save_survey_answer(user_id: int, field_name: str, answer: str):
             await write_logs("error", f"Error saving survey answer: {str(e)}")
 
 
+async def update_user_activity(user_id: int):
+    """Обновляет статистику активности пользователя.
+
+    Args:
+        user_id (int): Идентификатор пользователя.
+    """
+    async with create_session() as session:
+        try:
+            # Получаем пользователя
+            user_stmt = select(User).where(User.user_id == user_id)
+            user = (await session.execute(user_stmt)).scalar_one_or_none()
+
+            if not user:
+                return
+
+            now = datetime.utcnow()
+            today = now.date()
+
+            # Проверяем, был ли пользователь активен сегодня
+            if user.last_active_date.date() != today:
+                user.active_days += 1
+                user.last_active_date = now
+
+            user.last_activity = now
+
+            # Получаем или создаем запись активности за сегодня
+            activity_stmt = select(UserActivity).where(
+                func.date(UserActivity.date) == today
+            )
+            activity = (await session.execute(activity_stmt)).scalar_one_or_none()
+
+            if not activity:
+                activity = UserActivity(date=now)
+                session.add(activity)
+
+            # Обновляем статистику
+            # Получаем количество активных пользователей
+            day_ago = now - timedelta(days=1)
+            week_ago = now - timedelta(days=7)
+            month_ago = now - timedelta(days=30)
+
+            daily_users = await session.execute(
+                select(func.count(User.user_id)).where(User.last_activity >= day_ago)
+            )
+            weekly_users = await session.execute(
+                select(func.count(User.user_id)).where(User.last_activity >= week_ago)
+            )
+            monthly_users = await session.execute(
+                select(func.count(User.user_id)).where(User.last_activity >= month_ago)
+            )
+
+            # Получаем количество завершенных опросов
+            daily_surveys = await session.execute(
+                select(func.count(UserSurvey.id)).where(
+                    and_(
+                        UserSurvey.created_at >= day_ago,
+                        UserSurvey.survey_completed == True,
+                    )
+                )
+            )
+            weekly_surveys = await session.execute(
+                select(func.count(UserSurvey.id)).where(
+                    and_(
+                        UserSurvey.created_at >= week_ago,
+                        UserSurvey.survey_completed == True,
+                    )
+                )
+            )
+            monthly_surveys = await session.execute(
+                select(func.count(UserSurvey.id)).where(
+                    and_(
+                        UserSurvey.created_at >= month_ago,
+                        UserSurvey.survey_completed == True,
+                    )
+                )
+            )
+
+            # Обновляем статистику
+            activity.daily_active_users = daily_users.scalar()
+            activity.weekly_active_users = weekly_users.scalar()
+            activity.monthly_active_users = monthly_users.scalar()
+            activity.daily_surveys = daily_surveys.scalar()
+            activity.weekly_surveys = weekly_surveys.scalar()
+            activity.monthly_surveys = monthly_surveys.scalar()
+
+            await session.commit()
+            await write_logs("info", f"Updated activity statistics for user {user_id}")
+
+        except Exception as e:
+            await write_logs("error", f"Error updating user activity: {str(e)}")
+
+
 async def get_or_create_user(user_id: int, username: str) -> User:
     """Получает существующего пользователя или создает нового.
 
@@ -144,10 +236,17 @@ async def get_or_create_user(user_id: int, username: str) -> User:
 
             if user is None:
                 # Create new user if not exists
-                user = User(user_id=user_id, username=username)
+                user = User(
+                    user_id=user_id,
+                    username=username,
+                    last_active_date=datetime.utcnow(),
+                )
                 session.add(user)
                 await session.commit()
                 await write_logs("info", f"Created new user with ID {user_id}")
+
+            # Обновляем активность пользователя
+            await update_user_activity(user_id)
 
             return user
         except Exception as e:

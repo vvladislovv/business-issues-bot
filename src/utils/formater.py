@@ -1,4 +1,6 @@
 from src.database.settings_data import UserSurvey
+import re
+from aiogram import types
 
 async def format_user_survey_results(
     user_id: int, username: str, survey: UserSurvey
@@ -47,3 +49,7 @@ async def format_user_survey_results(
     return message.replace("_", "\\_").replace(
         "*", "\\*"
     )  
+
+
+
+   

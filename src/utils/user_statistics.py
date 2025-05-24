@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
 import pandas as pd
-from sqlalchemy import select, and_
-from src.database.settings_data import User, UserSurvey, create_session
+from sqlalchemy import select
+from src.database.settings_data import User, create_session
 from src.utils.logging import write_logs
 from typing import Optional, Dict
-from openpyxl.styles import Font
+from openpyxl.styles import Font, Alignment
+from openpyxl.utils import get_column_letter
 
 
 async def get_user_statistics() -> Optional[Dict]:
@@ -24,40 +25,22 @@ async def get_user_statistics() -> Optional[Dict]:
             for user in users:
                 users_data.append(
                     {
-                        "ID пользователя": user.user_id,
-                        "Username": user.username or "Не указан",
-                        "Имя": user.first_name or "Не указано",
-                        "Фамилия": user.last_name or "Не указана",
-                        "Первое использование": user.first_seen.strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        ),
-                        "Последняя активность": user.last_activity.strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        ),
-                        "Опрос пройден": "Да" if user.survey_completed else "Нет",
-                        "Дней активности": user.active_days,
+                        "id": user.user_id,
+                        "username": user.username or "",
+                        "first_name": user.first_name or "",
+                        "last_name": user.last_name or "",
+                        "fist_seen": user.first_seen.strftime("%Y-%m-%d %H:%M:%S.%f")[
+                            :-4
+                        ],
+                        "last_activity": user.last_activity.strftime(
+                            "%Y-%m-%d %H:%M:%S.%f"
+                        )[:-4],
+                        "survey_completed": user.survey_completed,
+                        "active_days": user.active_days,
                     }
                 )
 
-            # Подсчитываем статистику
-            now = datetime.utcnow()
-            day_ago = now - timedelta(days=1)
-
-            stats = {
-                "total_users": len(users),
-                "active_today": sum(
-                    1 for user in users if user.last_activity >= day_ago
-                ),
-                "completed_surveys": sum(1 for user in users if user.survey_completed),
-                "activity_stats": {
-                    "daily": sum(1 for user in users if user.active_days == 1),
-                    "weekly": sum(1 for user in users if 1 < user.active_days <= 7),
-                    "monthly": sum(1 for user in users if 7 < user.active_days <= 30),
-                },
-                "users_data": users_data,
-            }
-
-            return stats
+            return {"users_data": users_data}
 
         except Exception as e:
             await write_logs("error", f"Error getting user statistics: {str(e)}")
@@ -76,73 +59,54 @@ async def generate_user_statistics_excel() -> Optional[str]:
             return None
 
         # Создаем DataFrame с данными пользователей
-        df_users = pd.DataFrame(stats["users_data"])
+        df = pd.DataFrame(stats["users_data"])
 
-        # Добавляем итоговую информацию
-        summary_data = {
-            "ID пользователя": [
-                "ИТОГО:",
-                "",
-                "Активны сегодня:",
-                "Прошли опрос:",
-                "",
-                "По дням активности:",
-                "1 день:",
-                "До недели:",
-                "До месяца:",
-            ],
-            "Username": [
-                f"{stats['total_users']} пользователей",
-                "",
-                f"{stats['active_today']}",
-                f"{stats['completed_surveys']}",
-                "",
-                "",
-                f"{stats['activity_stats']['daily']}",
-                f"{stats['activity_stats']['weekly']}",
-                f"{stats['activity_stats']['monthly']}",
-            ],
-        }
-
-        # Создаем DataFrame для итогов
-        df_summary = pd.DataFrame(summary_data)
-
-        # Объединяем данные, добавляя пустую строку между ними
-        empty_row = pd.DataFrame(
-            [["" for _ in df_users.columns]], columns=df_users.columns
-        )
-        df_final = pd.concat([df_summary, empty_row, df_users], ignore_index=True)
+        # Устанавливаем порядок колонок как на фотографии
+        columns = [
+            "id",
+            "username",
+            "first_name",
+            "last_name",
+            "fist_seen",
+            "last_activity",
+            "survey_completed",
+            "active_days",
+        ]
+        df = df[columns]
 
         # Сохраняем в Excel
-        filename = f"user_statistics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        filename = "users_data.xlsx"
 
         with pd.ExcelWriter(filename, engine="openpyxl") as writer:
-            df_final.to_excel(
-                writer, index=False, sheet_name="Статистика пользователей"
-            )
+            df.to_excel(writer, index=False, sheet_name="J17")
 
             # Получаем рабочий лист
-            worksheet = writer.sheets["Статистика пользователей"]
+            worksheet = writer.sheets["J17"]
 
-            # Настраиваем ширину столбцов
-            for idx, col in enumerate(df_final.columns):
-                max_length = (
-                    max(df_final[col].astype(str).apply(len).max(), len(col)) + 2
-                )
-                worksheet.column_dimensions[chr(65 + idx)].width = max_length
+            # Настраиваем форматирование
+            for idx, col in enumerate(df.columns, 1):
+                # Получаем букву колонки
+                column_letter = get_column_letter(idx)
 
-            # Применяем форматирование
-            header_font = Font(name="Arial", size=11, bold=True)
-            regular_font = Font(name="Arial", size=11)
+                # Устанавливаем ширину колонки
+                max_length = max(df[col].astype(str).apply(len).max(), len(str(col)))
+                adjusted_width = max_length + 2
+                worksheet.column_dimensions[column_letter].width = adjusted_width
 
-            for row in worksheet.iter_rows():
-                for cell in row:
-                    if (
-                        cell.row == 1 or cell.row <= 10
-                    ):  # Заголовок и итоговая информация
-                        cell.font = header_font
-                    else:
-                        cell.font = regular_font
+                # Форматируем заголовок
+                header_cell = worksheet[f"{column_letter}1"]
+                header_cell.font = Font(name="Arial", size=11)
+                header_cell.alignment = Alignment(horizontal="left")
+
+                # Форматируем все ячейки в колонке
+                for row in range(2, len(df) + 2):
+                    cell = worksheet[f"{column_letter}{row}"]
+                    cell.font = Font(name="Arial", size=11)
+                    cell.alignment = Alignment(horizontal="left")
+
+                    # Форматируем числовые значения для survey_completed
+                    if col == "survey_completed":
+                        cell.value = 1 if cell.value else 0
 
         await write_logs(
             "info", f"Successfully generated user statistics Excel report: {filename}"

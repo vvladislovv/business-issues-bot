@@ -24,6 +24,32 @@ db_file_path = os.path.join(os.path.dirname(__file__), "database.db")
 engine = create_async_engine(f"sqlite+aiosqlite:///{db_file_path}", echo=False)
 
 
+class UserActivity(Base):
+    """Модель для хранения статистики активности пользователей.
+
+    Атрибуты:
+        id (int): Уникальный идентификатор записи.
+        date (datetime): Дата активности.
+        daily_active_users (int): Количество активных пользователей за день.
+        weekly_active_users (int): Количество активных пользователей за неделю.
+        monthly_active_users (int): Количество активных пользователей за месяц.
+        daily_surveys (int): Количество пройденных опросов за день.
+        weekly_surveys (int): Количество пройденных опросов за неделю.
+        monthly_surveys (int): Количество пройденных опросов за месяц.
+    """
+
+    __tablename__ = "user_activity"
+
+    id = mapped_column(Integer, primary_key=True)
+    date = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    daily_active_users = mapped_column(Integer, default=0)
+    weekly_active_users = mapped_column(Integer, default=0)
+    monthly_active_users = mapped_column(Integer, default=0)
+    daily_surveys = mapped_column(Integer, default=0)
+    weekly_surveys = mapped_column(Integer, default=0)
+    monthly_surveys = mapped_column(Integer, default=0)
+
+
 class User(Base):
     """Модель для хранения информации о пользователе и ответах на опросы.
 
@@ -36,6 +62,7 @@ class User(Base):
         last_activity (datetime): Последняя активность пользователя.
         survey_completed (bool): Завершил ли пользователь опрос.
         active_days (int): Количество дней активности.
+        last_active_date (datetime): Дата последней активности для подсчета дней.
     """
 
     __tablename__ = "users"
@@ -47,7 +74,8 @@ class User(Base):
     first_seen = mapped_column(DateTime, default=datetime.utcnow)
     last_activity = mapped_column(DateTime, default=datetime.utcnow)
     survey_completed = mapped_column(Boolean, default=False)
-    active_days = mapped_column(Integer, default=1)  # Счетчик дней активности
+    active_days = mapped_column(Integer, default=1)
+    last_active_date = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class UserSurvey(Base):

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import pandas as pd
-from sqlalchemy import select, and_
-from src.database.settings_data import User, UserSurvey, create_session
+from sqlalchemy import select, and_, func
+from src.database.settings_data import User, UserSurvey, UserActivity, create_session
 from src.utils.logging import write_logs
 from typing import Optional, Dict
 from openpyxl.styles import Font
@@ -16,52 +16,47 @@ async def get_time_based_statistics() -> Optional[Dict]:
     async with create_session() as session:
         try:
             now = datetime.utcnow()
-            day_ago = now - timedelta(days=1)
-            week_ago = now - timedelta(days=7)
-            month_ago = now - timedelta(days=30)
+            today = now.date()
 
-            # Получаем всех пользователей и опросы
-            users_query = await session.execute(select(User))
-            surveys_query = await session.execute(select(UserSurvey))
+            # Получаем статистику за сегодня
+            activity_stmt = select(UserActivity).where(
+                func.date(UserActivity.date) == today
+            )
+            activity = (await session.execute(activity_stmt)).scalar_one_or_none()
 
-            users = users_query.scalars().all()
-            surveys = surveys_query.scalars().all()
+            if not activity:
+                # Если статистики нет, возвращаем нулевые значения
+                return {
+                    "total": {"users": 0, "surveys": 0},
+                    "daily": {"users": 0, "surveys": 0},
+                    "weekly": {"users": 0, "surveys": 0},
+                    "monthly": {"users": 0, "surveys": 0},
+                }
 
-            # Подсчитываем статистику
+            # Получаем общее количество пользователей и опросов
+            total_users = await session.execute(select(func.count(User.user_id)))
+            total_surveys = await session.execute(
+                select(func.count(UserSurvey.id)).where(
+                    UserSurvey.survey_completed == True
+                )
+            )
+
             stats = {
                 "total": {
-                    "users": len(users),
-                    "surveys": len([s for s in surveys if s.survey_completed]),
+                    "users": total_users.scalar(),
+                    "surveys": total_surveys.scalar(),
                 },
                 "daily": {
-                    "users": len([u for u in users if u.first_seen >= day_ago]),
-                    "surveys": len(
-                        [
-                            s
-                            for s in surveys
-                            if s.created_at >= day_ago and s.survey_completed
-                        ]
-                    ),
+                    "users": activity.daily_active_users,
+                    "surveys": activity.daily_surveys,
                 },
                 "weekly": {
-                    "users": len([u for u in users if u.first_seen >= week_ago]),
-                    "surveys": len(
-                        [
-                            s
-                            for s in surveys
-                            if s.created_at >= week_ago and s.survey_completed
-                        ]
-                    ),
+                    "users": activity.weekly_active_users,
+                    "surveys": activity.weekly_surveys,
                 },
                 "monthly": {
-                    "users": len([u for u in users if u.first_seen >= month_ago]),
-                    "surveys": len(
-                        [
-                            s
-                            for s in surveys
-                            if s.created_at >= month_ago and s.survey_completed
-                        ]
-                    ),
+                    "users": activity.monthly_active_users,
+                    "surveys": activity.monthly_surveys,
                 },
             }
 
@@ -92,11 +87,11 @@ async def generate_time_statistics_excel() -> Optional[str]:
                 "Прошли опрос сегодня:",
                 "",
                 "За последнюю неделю:",
-                "Новых пользователей:",
+                "Активных пользователей:",
                 "Пройдено опросов:",
                 "",
                 "За последний месяц:",
-                "Новых пользователей:",
+                "Активных пользователей:",
                 "Пройдено опросов:",
                 "",
                 "Всего:",

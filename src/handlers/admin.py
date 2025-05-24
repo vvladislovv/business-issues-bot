@@ -9,9 +9,13 @@ from src.keyboards.inlinebutton import (
 from src.utils.localization import MESSAGES
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from datetime import datetime
 import os
-from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    FSInputFile,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    MessageEntity,
+)
 from src.utils.statistics import (
     get_time_based_statistics,
     generate_time_statistics_excel,
@@ -20,7 +24,7 @@ from src.utils.user_statistics import (
     get_user_statistics,
     generate_user_statistics_excel,
 )
-from src.database.using_data import  get_all_users
+from src.database.using_data import get_all_users
 
 router = Router(name=__name__)
 
@@ -201,69 +205,37 @@ async def process_user_stats_button(callback_query: types.CallbackQuery):
         await write_logs("info", f"User stats request from admin {user_id}")
         await callback_query.answer("⏳ Подготовка статистики пользователей...")
 
-        # Получаем статистику
-        stats = await get_user_statistics()
-
-        if stats:
-            stats_text = (
-                "👥 Статистика пользователей:\n\n"
-                f"Всего пользователей: {stats['total_users']}\n"
-                f"Активны сегодня: {stats['active_today']}\n"
-                f"Прошли опрос: {stats['completed_surveys']}\n\n"
-                f"Статистика использования:\n"
-                f"Используют 1 день: {stats['activity_stats']['daily']}\n"
-                f"Используют до недели: {stats['activity_stats']['weekly']}\n"
-                f"Используют до месяца: {stats['activity_stats']['monthly']}"
-            )
-
+        # Генерируем Excel отчет
+        excel_path = await generate_user_statistics_excel()
+        if excel_path:
             try:
-                # Генерируем Excel отчет
-                excel_path = await generate_user_statistics_excel()
-                if excel_path:
-                    # Отправляем статистику
-                    await callback_query.message.edit_text(
-                        stats_text, reply_markup=await get_admin_keyboard()
-                    )
+                # Отправляем Excel файл
+                doc = FSInputFile(excel_path)
+                await callback_query.message.answer_document(
+                    doc, caption="👥 Статистика пользователей бота"
+                )
+                await write_logs(
+                    "info",
+                    f"User statistics Excel report sent to admin {user_id}",
+                )
 
-                    try:
-                        # Отправляем Excel файл
-                        doc = FSInputFile(excel_path)
-                        await callback_query.message.answer_document(
-                            doc, caption="👥 Статистика пользователей бота"
-                        )
+                # Удаляем временный файл
+                try:
+                    if os.path.exists(excel_path):
+                        os.remove(excel_path)
                         await write_logs(
                             "info",
-                            f"User statistics Excel report sent to admin {user_id}",
+                            f"Temporary Excel file removed: {excel_path}",
                         )
-                    except Exception as e:
-                        await write_logs("error", f"Error sending Excel file: {str(e)}")
-                        await callback_query.message.answer(
-                            "❌ Ошибка при отправке Excel файла"
-                        )
-                    finally:
-                        # Удаляем временный файл
-                        try:
-                            if os.path.exists(excel_path):
-                                os.remove(excel_path)
-                                await write_logs(
-                                    "info",
-                                    f"Temporary Excel file removed: {excel_path}",
-                                )
-                        except Exception as e:
-                            await write_logs(
-                                "error",
-                                f"Error removing temporary Excel file: {str(e)}",
-                            )
-                else:
-                    await callback_query.message.edit_text(
-                        stats_text + "\n\n⚠️ Ошибка при создании Excel отчета",
-                        reply_markup=await get_admin_keyboard(),
+                except Exception as e:
+                    await write_logs(
+                        "error",
+                        f"Error removing temporary Excel file: {str(e)}",
                     )
             except Exception as e:
-                await write_logs("error", f"Error in Excel report generation: {str(e)}")
-                await callback_query.message.edit_text(
-                    stats_text + "\n\n❌ Ошибка при создании Excel отчета",
-                    reply_markup=await get_admin_keyboard(),
+                await write_logs("error", f"Error sending Excel file: {str(e)}")
+                await callback_query.message.answer(
+                    "❌ Ошибка при отправке Excel файла"
                 )
         else:
             await write_logs("warning", "No user statistics data available")
@@ -298,7 +270,7 @@ async def process_mailing_button(
         return
 
     await write_logs("info", f"Mailing request from admin {user_id}")
-    
+
     # Check if already in mailing state to prevent multiple triggers
     current_state = await state.get_state()
     if current_state == AdminStates.WAITING_MAILING_MEDIA.state:
@@ -328,18 +300,71 @@ async def handle_mailing_content(message: types.Message, state: FSMContext):
         if message.text:
             mailing_data["type"] = "text"
             mailing_data["content"] = message.text
+            # Сохраняем entities как список словарей
+            if message.entities:
+                mailing_data["entities"] = [
+                    {
+                        "type": entity.type,
+                        "offset": entity.offset,
+                        "length": entity.length,
+                        "url": entity.url,
+                        "user": entity.user,
+                        "language": entity.language,
+                        "custom_emoji_id": entity.custom_emoji_id,
+                    }
+                    for entity in message.entities
+                ]
         elif message.photo:
             mailing_data["type"] = "photo"
             mailing_data["content"] = message.photo[-1].file_id
             mailing_data["caption"] = message.caption
+            if message.caption_entities:
+                mailing_data["caption_entities"] = [
+                    {
+                        "type": entity.type,
+                        "offset": entity.offset,
+                        "length": entity.length,
+                        "url": entity.url,
+                        "user": entity.user,
+                        "language": entity.language,
+                        "custom_emoji_id": entity.custom_emoji_id,
+                    }
+                    for entity in message.caption_entities
+                ]
         elif message.video:
             mailing_data["type"] = "video"
             mailing_data["content"] = message.video.file_id
             mailing_data["caption"] = message.caption
+            if message.caption_entities:
+                mailing_data["caption_entities"] = [
+                    {
+                        "type": entity.type,
+                        "offset": entity.offset,
+                        "length": entity.length,
+                        "url": entity.url,
+                        "user": entity.user,
+                        "language": entity.language,
+                        "custom_emoji_id": entity.custom_emoji_id,
+                    }
+                    for entity in message.caption_entities
+                ]
         elif message.voice:
             mailing_data["type"] = "voice"
             mailing_data["content"] = message.voice.file_id
             mailing_data["caption"] = message.caption
+            if message.caption_entities:
+                mailing_data["caption_entities"] = [
+                    {
+                        "type": entity.type,
+                        "offset": entity.offset,
+                        "length": entity.length,
+                        "url": entity.url,
+                        "user": entity.user,
+                        "language": entity.language,
+                        "custom_emoji_id": entity.custom_emoji_id,
+                    }
+                    for entity in message.caption_entities
+                ]
         else:
             await message.answer(
                 "❌ Неподдерживаемый тип сообщения. Пожалуйста, отправьте текст, фото, видео или голосовое сообщение."
@@ -452,40 +477,71 @@ async def send_mailing(message: types.Message, state: FSMContext):
         successful = 0
         failed = 0
 
+        # Преобразуем entities в объекты MessageEntity
+        entities = None
+        caption_entities = None
+
+        if "entities" in mailing_data:
+            entities = [
+                MessageEntity(
+                    type=e["type"],
+                    offset=e["offset"],
+                    length=e["length"],
+                    url=e.get("url"),
+                    user=e.get("user"),
+                    language=e.get("language"),
+                    custom_emoji_id=e.get("custom_emoji_id"),
+                )
+                for e in mailing_data["entities"]
+            ]
+
+        if "caption_entities" in mailing_data:
+            caption_entities = [
+                MessageEntity(
+                    type=e["type"],
+                    offset=e["offset"],
+                    length=e["length"],
+                    url=e.get("url"),
+                    user=e.get("user"),
+                    language=e.get("language"),
+                    custom_emoji_id=e.get("custom_emoji_id"),
+                )
+                for e in mailing_data["caption_entities"]
+            ]
+
         # Отправляем сообщения
         for user in users:
-            print(mailing_data)
             try:
                 if mailing_data["type"] == "text":
                     await message.bot.send_message(
                         user.user_id,
                         mailing_data["content"],
+                        entities=entities,
                         reply_markup=keyboard,
-                        parse_mode="MarkdownV2",  # Changed to MarkdownV2 for better formatting
                     )
                 elif mailing_data["type"] == "photo":
                     await message.bot.send_photo(
                         user.user_id,
                         mailing_data["content"],
                         caption=mailing_data.get("caption"),
+                        caption_entities=caption_entities,
                         reply_markup=keyboard,
-                        parse_mode="MarkdownV2",  # Added parse_mode for consistency
                     )
                 elif mailing_data["type"] == "video":
                     await message.bot.send_video(
                         user.user_id,
                         mailing_data["content"],
                         caption=mailing_data.get("caption"),
+                        caption_entities=caption_entities,
                         reply_markup=keyboard,
-                        parse_mode="MarkdownV2",  # Added parse_mode for consistency
                     )
                 elif mailing_data["type"] == "voice":
                     await message.bot.send_voice(
                         user.user_id,
                         mailing_data["content"],
                         caption=mailing_data.get("caption"),
+                        caption_entities=caption_entities,
                         reply_markup=keyboard,
-                        parse_mode="MarkdownV2",  # Added parse_mode for consistency
                     )
                 successful += 1
             except Exception as e:
