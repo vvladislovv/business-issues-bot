@@ -1,4 +1,3 @@
-import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from datetime import datetime
@@ -15,13 +14,13 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, mapped_column, relationship
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from src.utils.logging import write_logs
-
+from src.config.config import settings
 
 Base = declarative_base()
 
 # Устанавливаем URL базы данных на файл в текущем каталоге
-db_file_path = os.path.join(os.path.dirname(__file__), "database.db")
-engine = create_async_engine(f"sqlite+aiosqlite:///{db_file_path}", echo=False)
+# db_file_path = os.path.join(os.path.dirname(__file__), "database.db")
+engine = create_async_engine(settings.config.DATABASE_URL, echo=True, pool_pre_ping=True)
 
 
 class UserActivity(Base):

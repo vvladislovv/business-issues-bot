@@ -42,7 +42,7 @@ class AdminStates(StatesGroup):
 async def handle_admin_command(message: types.Message, state: FSMContext):
     """
     Обрабатывает команду администратора.
-
+    
     Args:
         message (types.Message): Сообщение, содержащее команду от пользователя.
         state (FSMContext): Контекст состояния для управления состоянием.
@@ -63,7 +63,7 @@ async def handle_admin_command(message: types.Message, state: FSMContext):
 async def handle_password_input(message: types.Message, state: FSMContext):
     """
     Обрабатывает ввод пароля от администратора.
-
+    
     Args:
         message (types.Message): Сообщение, содержащее введенный пароль.
         state (FSMContext): Контекст состояния для управления состоянием.
@@ -84,7 +84,12 @@ async def handle_password_input(message: types.Message, state: FSMContext):
 
 @router.callback_query(lambda c: c.data == "admin_activity_stats")
 async def process_activity_stats_button(callback_query: types.CallbackQuery):
-    """Обрабатывает нажатие кнопки статистики активности."""
+    """
+    Обрабатывает нажатие кнопки статистики активности.
+    
+    Args:
+        callback_query (types.CallbackQuery): Запрос обратного вызова от пользователя.
+    """
     user_id = callback_query.from_user.id
 
     try:
@@ -191,7 +196,12 @@ async def process_activity_stats_button(callback_query: types.CallbackQuery):
 
 @router.callback_query(lambda c: c.data == "admin_user_stats")
 async def process_user_stats_button(callback_query: types.CallbackQuery):
-    """Обрабатывает нажатие кнопки статистики пользователей."""
+    """
+    Обрабатывает нажатие кнопки статистики пользователей.
+    
+    Args:
+        callback_query (types.CallbackQuery): Запрос обратного вызова от пользователя.
+    """
     user_id = callback_query.from_user.id
 
     try:
@@ -261,7 +271,13 @@ async def process_user_stats_button(callback_query: types.CallbackQuery):
 async def process_mailing_button(
     callback_query: types.CallbackQuery, state: FSMContext
 ):
-    """Обрабатывает нажатие кнопки рассылки."""
+    """
+    Обрабатывает нажатие кнопки рассылки.
+    
+    Args:
+        callback_query (types.CallbackQuery): Запрос обратного вызова от пользователя.
+        state (FSMContext): Контекст состояния для управления состоянием.
+    """
     user_id = callback_query.from_user.id
 
     if user_id not in settings.config.admins.admins:
@@ -292,7 +308,13 @@ async def process_mailing_button(
 
 @router.message(AdminStates.WAITING_MAILING_MEDIA)
 async def handle_mailing_content(message: types.Message, state: FSMContext):
-    """Обрабатывает контент для рассылки."""
+    """
+    Обрабатывает контент для рассылки.
+    
+    Args:
+        message (types.Message): Сообщение, содержащее контент для рассылки.
+        state (FSMContext): Контекст состояния для управления состоянием.
+    """
     try:
         # Сохраняем информацию о сообщении
         mailing_data = {}
@@ -396,7 +418,13 @@ async def handle_mailing_content(message: types.Message, state: FSMContext):
 
 @router.callback_query(lambda c: c.data == "add_buttons")
 async def process_add_buttons(callback_query: types.CallbackQuery, state: FSMContext):
-    """Обрабатывает добавление кнопок."""
+    """
+    Обрабатывает добавление кнопок.
+    
+    Args:
+        callback_query (types.CallbackQuery): Запрос обратного вызова от пользователя.
+        state (FSMContext): Контекст состояния для управления состоянием.
+    """
     await state.set_state(AdminStates.WAITING_BUTTON_TEXT)
     await callback_query.message.edit_text(
         "Введите текст для кнопки:",
@@ -410,7 +438,13 @@ async def process_add_buttons(callback_query: types.CallbackQuery, state: FSMCon
 
 @router.callback_query(lambda c: c.data == "no_buttons")
 async def process_no_buttons(callback_query: types.CallbackQuery, state: FSMContext):
-    """Обрабатывает отказ от добавления кнопок."""
+    """
+    Обрабатывает отказ от добавления кнопок.
+    
+    Args:
+        callback_query (types.CallbackQuery): Запрос обратного вызова от пользователя.
+        state (FSMContext): Контекст состояния для управления состоянием.
+    """
     await send_mailing(callback_query.message, state)
 
 
@@ -418,13 +452,25 @@ async def process_no_buttons(callback_query: types.CallbackQuery, state: FSMCont
 async def process_cancel_buttons(
     callback_query: types.CallbackQuery, state: FSMContext
 ):
-    """Обрабатывает отмену добавления кнопок."""
+    """
+    Обрабатывает отмену добавления кнопок.
+    
+    Args:
+        callback_query (types.CallbackQuery): Запрос обратного вызова от пользователя.
+        state (FSMContext): Контекст состояния для управления состоянием.
+    """
     await send_mailing(callback_query.message, state)
 
 
 @router.message(AdminStates.WAITING_BUTTON_TEXT)
 async def handle_button_text(message: types.Message, state: FSMContext):
-    """Обрабатывает текст кнопки."""
+    """
+    Обрабатывает текст кнопки.
+    
+    Args:
+        message (types.Message): Сообщение, содержащее текст кнопки.
+        state (FSMContext): Контекст состояния для управления состоянием.
+    """
     await state.update_data(button_text=message.text)
     await state.set_state(AdminStates.WAITING_BUTTON_URL)
     await message.answer("Теперь введите ссылку для кнопки:")
@@ -432,7 +478,13 @@ async def handle_button_text(message: types.Message, state: FSMContext):
 
 @router.message(AdminStates.WAITING_BUTTON_URL)
 async def handle_button_url(message: types.Message, state: FSMContext):
-    """Обрабатывает URL кнопки."""
+    """
+    Обрабатывает URL кнопки.
+    
+    Args:
+        message (types.Message): Сообщение, содержащее URL кнопки.
+        state (FSMContext): Контекст состояния для управления состоянием.
+    """
     if not message.text.startswith(("http://", "https://")):
         await message.answer(
             "❌ Некорректная ссылка. Ссылка должна начинаться с http:// или https://"
@@ -451,7 +503,13 @@ async def handle_button_url(message: types.Message, state: FSMContext):
 
 
 async def send_mailing(message: types.Message, state: FSMContext):
-    """Отправляет рассылку всем пользователям."""
+    """
+    Отправляет рассылку всем пользователям.
+    
+    Args:
+        message (types.Message): Сообщение, содержащее контент для рассылки.
+        state (FSMContext): Контекст состояния для управления состоянием.
+    """
     try:
         state_data = await state.get_data()
         mailing_data = state_data["mailing"]

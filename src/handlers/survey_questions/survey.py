@@ -6,8 +6,9 @@ from src.config.config import settings
 from src.database.using_data import (
     save_survey_answer,
     finalize_survey,
+    get_user_survey,
 )
-from .questions import QUESTIONS, FINAL_MESSAGE
+from .questions import QUESTIONS, get_final_message
 from src.utils.logging import write_logs
 from src.keyboards.inlinebutton import (
     get_final_keyboard,
@@ -25,19 +26,27 @@ class SurveyStates(StatesGroup):
     ANSWERING = State()
 
 
+async def get_final_survey_message(user_id: int) -> str:
+    """Получает финальное сообщение на основе ответов пользователя.
+
+    Args:
+        user_id (int): ID пользователя.
+
+    Returns:
+        str: Финальное сообщение.
+    """
+    survey = await get_user_survey(user_id)
+    if not survey:
+        return get_final_message(False)  # Возвращаем сообщение по умолчанию
+
+    is_under_25 = survey.is_under_25 == "Да"
+    return get_final_message(is_under_25)
+
+
 # ! это для текстового ответа
 @router.message(SurveyStates.ANSWERING)
 async def process_text_answer(message: Message, state: FSMContext):
-    """
-    Обрабатывает текстовые ответы на вопросы опроса.
-
-    Args:
-        message (Message): Сообщение, содержащее текстовый ответ от пользователя.
-        state (FSMContext): Контекст состояния для управления состоянием опроса.
-
-    Returns:
-        None: Функция ничего не возвращает, но обновляет состояние и отправляет сообщения.
-    """
+    """Обрабатывает текстовые ответы на вопросы опроса."""
     try:
         data = await state.get_data()
         current_question_id = data.get("current_question")
@@ -64,13 +73,13 @@ async def process_text_answer(message: Message, state: FSMContext):
             user_results = await finalize_survey(
                 message.from_user.id, message.from_user.username
             )
-            print(user_results)
             if user_results and settings.config.channel_id:
                 await message.chat.bot.send_message(
                     settings.config.channel_id, user_results
                 )
 
-            await message.answer(FINAL_MESSAGE, reply_markup=await get_final_keyboard())
+            final_message = await get_final_survey_message(message.from_user.id)
+            await message.answer(final_message, reply_markup=await get_final_keyboard())
             await state.clear()
             return
 
@@ -120,14 +129,14 @@ async def process_survey_answer(callback: CallbackQuery, state: FSMContext):
             user_results = await finalize_survey(
                 callback.from_user.id, callback.from_user.username
             )
-            print(user_results)
             if user_results and settings.config.channel_id:
                 await callback.message.chat.bot.send_message(
                     settings.config.channel_id, user_results
                 )
 
+            final_message = await get_final_survey_message(callback.from_user.id)
             await callback.message.answer(
-                FINAL_MESSAGE, reply_markup=await get_final_keyboard()
+                final_message, reply_markup=await get_final_keyboard()
             )
             await state.clear()
         else:
@@ -169,9 +178,7 @@ async def process_final_choice(callback: CallbackQuery):
         }
 
         await new_message(
-            callback.message,
-            responses[callback.data],
-            await get_general_menu()
+            callback.message, responses[callback.data], await get_general_menu()
         )
         await callback.answer()
 

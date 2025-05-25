@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime, timedelta
 from sqlalchemy import select, and_, func
 from typing import List, Optional
@@ -7,6 +8,7 @@ from src.utils.logging import write_logs
 from .settings_data import User, create_session, UserSurvey, UserActivity
 
 
+# Обновляем create_session с новым URL
 async def get_all_users() -> List[User]:
     """Получает всех пользователей из базы данных.
 
@@ -304,4 +306,34 @@ async def finalize_survey(user_id: int, username: str) -> Optional[str]:
 
         except Exception as e:
             await write_logs("error", f"Error finalizing survey: {str(e)}")
+            return None
+
+
+async def get_user_survey(user_id: int) -> Optional[UserSurvey]:
+    """Получает последний завершенный опрос пользователя.
+
+    Args:
+        user_id (int): Идентификатор пользователя.
+
+    Returns:
+        Optional[UserSurvey]: Объект опроса или None, если опрос не найден.
+    """
+    async with create_session() as session:
+        try:
+            # Получаем самый последний завершенный опрос
+            stmt = (
+                select(UserSurvey)
+                .where(
+                    and_(
+                        UserSurvey.user_id == user_id,
+                        UserSurvey.survey_completed == True,
+                    )
+                )
+                .order_by(UserSurvey.created_at.desc())
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
+        except Exception as e:
+            await write_logs("error", f"Error getting user survey: {str(e)}")
             return None
