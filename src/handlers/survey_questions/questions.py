@@ -1,76 +1,81 @@
 from dataclasses import dataclass
 from typing import List, Optional, Dict
+from src.utils.localization import get_message
 
 
 @dataclass
 class Question:
-    text: str
+    key: str  # Ключ для получения текста из БД
     field_name: str
     options: Optional[List[str]] = None
     next_question: Optional[str] = None
     is_last: bool = False
 
+    async def get_text(self) -> str:
+        """Получает текст вопроса из базы данных."""
+        return await get_message(self.key, category="questions")
+
 
 QUESTIONS: Dict[str, Question] = {
     # Block 1: Diagnostics
     "region": Question(
-        text="В каком ты регионе?", field_name="region", next_question="has_business"
+        key="question_region", field_name="region", next_question="has_business"
     ),
     "has_business": Question(
-        text="Есть ли у тебя ИП/Самозанятость?",
+        key="question_has_business",
         field_name="has_business",
         options=["Да", "Нет, но планирую", "Нет и не планирую"],
         next_question="is_under_25",
     ),
     "is_under_25": Question(
-        text="Ты младше 25 лет?",
+        key="question_is_under_25",
         field_name="is_under_25",
         options=["Да", "Нет"],
         next_question="has_experience",
     ),
     "has_experience": Question(
-        text="Есть ли у тебя опыт или навыки в сфере будущего бизнеса?",
+        key="question_has_experience",
         field_name="has_experience",
         options=["Да", "Нет"],
         next_question="official_income",
     ),
     "official_income": Question(
-        text="Какой у тебя сейчас официальный доход? (переводы на карту не считаются)",
+        key="question_official_income",
         field_name="official_income",
         next_question="work_plan",
     ),
     "work_plan": Question(
-        text="Планируешь ли ты работать один или нанимать сотрудников?",
+        key="question_work_plan",
         field_name="work_plan",
         options=["Один", "Нанимать сотрудников"],
         next_question="micro_result",
     ),
     "micro_result": Question(
-        text="Можно какой-то микрорезультат дать, чтобы проще было дойти до конца вопросов",
+        key="question_micro_result",
         field_name="micro_result",
         next_question="subsidy_interest",
     ),
     # Block 2: Qualification
     "subsidy_interest": Question(
-        text="Насколько серьёзно вы настроены получить субсидию в ближайшие 2 месяца?",
+        key="question_subsidy_interest",
         field_name="subsidy_interest",
         options=["Готов начинать", "Думаю пока", "Просто интересуюсь"],
         next_question="desired_outcome",
     ),
     "desired_outcome": Question(
-        text="Что вы хотели бы получить?",
+        key="question_desired_outcome",
         field_name="desired_outcome",
         options=["Пошаговый план", "Готовый бизнес-план", "Сопровождение под ключ"],
         next_question="importance_level",
     ),
     "importance_level": Question(
-        text="Насколько важно для вас увеличить шансы на одобрение и сократить сроки?",
+        key="question_importance_level",
         field_name="importance_level",
         options=["Очень важно", "Не очень", "Пока не уверен"],
         next_question="investment_readiness",
     ),
     "investment_readiness": Question(
-        text="Вы готовы инвестировать в подготовку, чтобы получить субсидию в 350–500 тыс. руб?",
+        key="question_investment_readiness",
         field_name="investment_readiness",
         options=[
             "Да, если шансы высоки",
@@ -82,37 +87,15 @@ QUESTIONS: Dict[str, Question] = {
 }
 
 
-def get_final_message(is_under_25: bool) -> str:
-    """Генерирует финальное сообщение в зависимости от возраста пользователя.
-
-    Args:
-        is_under_25 (bool): True если пользователь младше 25 лет.
-
-    Returns:
-        str: Финальное сообщение с доступными вариантами поддержки.
-    """
-    base_message = """Отлично!
-По этим данным у тебя очень высокие шансы на выдачу. С подобными ответами мои клиенты получают субсидию с первой попытки в 90%+ случаев
-
-📌 В зависимости от вашего возраста вам доступны следующие варианты:"""
+async def get_final_message(is_under_25: bool) -> str:
+    """Генерирует финальное сообщение в зависимости от возраста пользователя."""
+    base_message = await get_message("survey_final_base", category="survey")
 
     if is_under_25:
-        support_options = """
-— Социальный контракт — до 350.000 ₽
-— Грант для предпринимателей — до 500.000 ₽"""
+        support_options = await get_message("survey_final_under_25", category="survey")
     else:
-        support_options = """
-— Социальный контракт — до 350.000 ₽"""
+        support_options = await get_message("survey_final_over_25", category="survey")
 
-    final_part = """
-
-Что дальше? Выбери, с чего хочешь начать:
-
-👇 Твои следующие шаги:
-
-1️⃣ Начать подготовку заявки — включаемся в работу и идем к субсидии вместе
-2️⃣ Забрать гайд «Как получить до 500.000₽ от государства» - полезный PDF с алгоритмом, примерами и лайфхаками
-3️⃣ Связаться с экспертом — обсудить вашу ситуацию и задать вопросы
-4️⃣ Посмотреть ответы на частые вопросы (FAQ) — коротко и по делу"""
+    final_part = await get_message("survey_final_steps", category="survey")
 
     return base_message + support_options + final_part

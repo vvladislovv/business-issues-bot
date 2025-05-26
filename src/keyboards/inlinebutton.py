@@ -25,14 +25,20 @@ async def get_general_menu() -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
+
 async def get_mailing_keyboard() -> InlineKeyboardMarkup:
     """Создает клавиатуру для рассылки."""
     keyboard = InlineKeyboardMarkup(row_width=1)
     keyboard.add(
-        InlineKeyboardButton(text="✅ Подтвердить рассылку", callback_data="confirm_mailing"),
-        InlineKeyboardButton(text="❌ Отменить рассылку", callback_data="cancel_mailing"),
+        InlineKeyboardButton(
+            text="✅ Подтвердить рассылку", callback_data="confirm_mailing"
+        ),
+        InlineKeyboardButton(
+            text="❌ Отменить рассылку", callback_data="cancel_mailing"
+        ),
     )
     return keyboard
+
 
 async def get_admin_keyboard() -> InlineKeyboardMarkup:
     """Создает клавиатуру для администратора.

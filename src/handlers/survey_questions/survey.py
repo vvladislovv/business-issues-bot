@@ -16,7 +16,7 @@ from src.keyboards.inlinebutton import (
     get_keyboard,
     get_general_menu,
 )
-from src.utils.localization import MESSAGES
+from src.utils.localization import get_message
 
 
 router = Router()
@@ -37,13 +37,12 @@ async def get_final_survey_message(user_id: int) -> str:
     """
     survey = await get_user_survey(user_id)
     if not survey:
-        return get_final_message(False)  # Возвращаем сообщение по умолчанию
+        return await get_final_message(False)
 
     is_under_25 = survey.is_under_25 == "Да"
-    return get_final_message(is_under_25)
+    return await get_final_message(is_under_25)
 
 
-# ! это для текстового ответа
 @router.message(SurveyStates.ANSWERING)
 async def process_text_answer(message: Message, state: FSMContext):
     """Обрабатывает текстовые ответы на вопросы опроса."""
@@ -53,14 +52,14 @@ async def process_text_answer(message: Message, state: FSMContext):
 
         if not current_question_id:
             await state.clear()
-            await message.answer(MESSAGES["ru"]["error_survey"])
+            await message.answer(await get_message("error_survey"))
             return
 
         current_question = QUESTIONS[current_question_id]
 
         if current_question.options:
             await message.answer(
-                "Пожалуйста, выберите один из предложенных вариантов ответа:",
+                await get_message("select_answer"),
                 reply_markup=await get_keyboard(current_question.options),
             )
             return
@@ -86,16 +85,16 @@ async def process_text_answer(message: Message, state: FSMContext):
         next_question = QUESTIONS[current_question.next_question]
         await state.update_data(current_question=current_question.next_question)
 
+        question_text = await next_question.get_text()
         await message.answer(
-            next_question.text, reply_markup=await get_keyboard(next_question.options)
+            question_text, reply_markup=await get_keyboard(next_question.options)
         )
 
     except Exception as e:
         await write_logs("error", f"Error in process_text_answer: {str(e)}")
-        await message.answer(MESSAGES["ru"]["error_survey"])
+        await message.answer(await get_message("error_survey"))
 
 
-# ! это для ответов на вопросы
 @router.callback_query(SurveyStates.ANSWERING)
 async def process_survey_answer(callback: CallbackQuery, state: FSMContext):
     """
@@ -114,7 +113,7 @@ async def process_survey_answer(callback: CallbackQuery, state: FSMContext):
 
         if not current_question_id:
             await state.clear()
-            await callback.message.answer(MESSAGES["ru"]["error_survey"])
+            await callback.message.answer(await get_message("error_survey"))
             return
 
         current_question = QUESTIONS[current_question_id]
@@ -143,16 +142,16 @@ async def process_survey_answer(callback: CallbackQuery, state: FSMContext):
             next_question = QUESTIONS[current_question.next_question]
             await state.update_data(current_question=current_question.next_question)
 
+            question_text = await next_question.get_text()
             await callback.message.answer(
-                next_question.text,
-                reply_markup=await get_keyboard(next_question.options),
+                question_text, reply_markup=await get_keyboard(next_question.options)
             )
 
         await callback.answer()
 
     except Exception as e:
         await write_logs("error", f"Error in process_survey_answer: {str(e)}")
-        await callback.message.answer(MESSAGES["ru"]["error_survey"])
+        await callback.message.answer(await get_message("error_survey"))
         await callback.answer()
 
 
@@ -171,10 +170,10 @@ async def process_final_choice(callback: CallbackQuery):
     """
     try:
         responses = {
-            "start_preparation": MESSAGES["ru"]["start_preparation"],
-            "get_guide": MESSAGES["ru"]["get_guide"],
-            "contact_expert": MESSAGES["ru"]["contact_expert"],
-            "faq": MESSAGES["ru"]["faq"],
+            "start_preparation": await get_message("start_preparation"),
+            "get_guide": await get_message("get_guide"),
+            "contact_expert": await get_message("contact_expert"),
+            "faq": await get_message("faq"),
         }
 
         await new_message(
@@ -184,5 +183,5 @@ async def process_final_choice(callback: CallbackQuery):
 
     except Exception as e:
         await write_logs("error", f"Error in process_final_choice: {str(e)}")
-        await callback.message.answer(MESSAGES["ru"]["error_survey"])
+        await callback.message.answer(await get_message("error_survey"))
         await callback.answer()

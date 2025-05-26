@@ -6,7 +6,7 @@ from src.keyboards.inlinebutton import (
     new_message,
     get_keyboard,
 )
-from src.utils.localization import MESSAGES
+from src.utils.localization import get_message
 from src.database.using_data import get_or_create_user
 from src.handlers.survey_questions.questions import QUESTIONS
 from src.handlers.survey_questions.survey import SurveyStates
@@ -28,23 +28,33 @@ async def general_main_survey(call: CallbackQuery, state: FSMContext) -> None:
         None: Функция ничего не возвращает, но обновляет сообщение и управляет состоянием опроса.
     """
     try:
-        await get_or_create_user(call.from_user.id, call.from_user.username)
-
+        # Получаем первый вопрос
         first_question = QUESTIONS.get("region")
+        if not first_question:
+            raise ValueError("First question not found")
+
+        # Устанавливаем состояние опроса
+        await state.set_state(SurveyStates.ANSWERING)
+        await state.update_data(current_question="region")
+
+        # Получаем текст вопроса
+        question_text = await first_question.get_text()
+
+        # Обновляем сообщение с началом опроса
         await update_message(
             call.message,
-            MESSAGES["ru"]["start_survey"],
+            await get_message("start_survey"),
             None,
         )
 
+        # Отправляем первый вопрос
         await new_message(
             call.message,
-            first_question.text,
+            question_text,
             await get_keyboard(first_question.options),
         )
 
-        await state.set_state(SurveyStates.ANSWERING)
-        await state.update_data(current_question="region")
+        await call.answer()
 
     except Exception as e:
         await write_logs("error", f"Error in general_main_survey: {str(e)}")
@@ -54,4 +64,3 @@ async def general_main_survey(call: CallbackQuery, state: FSMContext) -> None:
             None,
         )
         await call.answer()
-

@@ -20,7 +20,9 @@ Base = declarative_base()
 
 # Устанавливаем URL базы данных на файл в текущем каталоге
 # db_file_path = os.path.join(os.path.dirname(__file__), "database.db")
-engine = create_async_engine(settings.config.DATABASE_URL, echo=True, pool_pre_ping=True)
+engine = create_async_engine(
+    settings.config.DATABASE_URL, echo=True, pool_pre_ping=True
+)
 
 
 class UserActivity(Base):
@@ -120,6 +122,26 @@ class UserSurvey(Base):
     user = relationship("User", backref="surveys")
 
 
+class Localization(Base):
+    """Модель для хранения локализованных сообщений.
+
+    Атрибуты:
+        id (int): Уникальный идентификатор сообщения
+        key (str): Ключ сообщения
+        category (str): Категория сообщения (system, survey, questions, etc.)
+        language (str): Код языка (например, 'ru')
+        message (str): Текст сообщения
+    """
+
+    __tablename__ = "localizations"
+
+    id = mapped_column(Integer, primary_key=True)
+    key = mapped_column(String(255), index=True)
+    category = mapped_column(String(50), index=True, default="system")
+    language = mapped_column(String(10), index=True)
+    message = mapped_column(String(1000))
+
+
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -135,7 +157,7 @@ async def init_db():
     try:
         async with engine.begin() as conn:
             # Удалить все таблицы
-            await conn.run_sync(Base.metadata.drop_all)
+            ##await conn.run_sync(Base.metadata.drop_all)
             # Создать все таблицы
             await conn.run_sync(Base.metadata.create_all)
             await write_logs("info", "Таблицы базы данных успешно созданы")

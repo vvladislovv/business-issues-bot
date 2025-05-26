@@ -11,15 +11,18 @@ from src.utils.logging import write_logs
 
 # Import all libary
 from src.config.config import settings
+from src.utils.localization import init_default_messages
 
 from src.handlers.common import router as common_router
 from src.handlers.callback import router as callback_router
 from src.handlers.survey_questions.survey import router as survey_router
 from src.handlers.admin import router as admin_router
+
 # from handlers.callback import router as callback_router
 from src.database.settings_data import init_db
 
 # Enable logging
+
 
 async def routers(dp, bot):
     routers = [
@@ -38,11 +41,12 @@ async def routers(dp, bot):
 async def main() -> None:
 
     await init_db()
+    await init_default_messages()  # Initialize localization messages
 
     try:
         bot = Bot(
             token=settings.config.bot_token,
-            default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
+            # default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
         )
         dp = Dispatcher(storage=MemoryStorage())
         await bot.delete_webhook(drop_pending_updates=True)

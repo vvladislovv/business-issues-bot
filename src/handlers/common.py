@@ -1,7 +1,7 @@
 from aiogram import Router, types
 from aiogram.filters import CommandStart
 from src.keyboards.inlinebutton import new_message
-from src.utils.localization import MESSAGES
+from src.utils.localization import get_message
 from src.keyboards.inlinebutton import get_general_menu
 from src.database.using_data import add_user_if_not_exists
 
@@ -18,7 +18,7 @@ async def command_start(message: types.Message) -> None:
     Returns:
         None: Функция ничего не возвращает, но отправляет сообщение пользователю и добавляет его в базу данных, если он новый.
     """
-    await new_message(message, MESSAGES['ru']['start'], await get_general_menu())
+    await new_message(message, await get_message('start'), await get_general_menu())
 
     user_data = {
         'user_id': message.from_user.id,

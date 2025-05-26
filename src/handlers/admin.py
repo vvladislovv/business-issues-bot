@@ -6,7 +6,7 @@ from src.keyboards.inlinebutton import (
     new_message,
     get_admin_keyboard,
 )
-from src.utils.localization import MESSAGES
+from src.utils.localization import get_message
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 import os
@@ -56,7 +56,7 @@ async def handle_admin_command(message: types.Message, state: FSMContext):
         return
 
     await state.set_state(AdminStates.WAITING_PASSWORD)
-    await new_message(message, MESSAGES["ru"]["enter_password"], None)
+    await new_message(message,  await get_message("enter_password"), None)
 
 
 @router.message(AdminStates.WAITING_PASSWORD)
@@ -74,12 +74,12 @@ async def handle_password_input(message: types.Message, state: FSMContext):
     if input_password == settings.config.ADMIN_PASSWORD:
         await write_logs("info", f"Admin access granted for {user_id}")
         await new_message(
-            message, MESSAGES["ru"]["admin_msg"], await get_admin_keyboard()
+            message, await get_message("admin_msg"), await get_admin_keyboard()
         )
         await state.clear()
     else:
         await write_logs("warning", f"Wrong password attempt by {user_id}")
-        await new_message(message, MESSAGES["ru"]["wrong_password"], None)
+        await new_message(message, await get_message("wrong_password"), None)
 
 
 @router.callback_query(lambda c: c.data == "admin_activity_stats")
