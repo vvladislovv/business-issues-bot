@@ -58,8 +58,10 @@ async def process_text_answer(message: Message, state: FSMContext):
         current_question = QUESTIONS[current_question_id]
 
         if current_question.options:
+            # Повторно отправляем текущий вопрос вместо select_answer
+            question_text = await current_question.get_text()
             await message.answer(
-                await get_message("select_answer"),
+                question_text,
                 reply_markup=await get_keyboard(current_question.options),
             )
             return
