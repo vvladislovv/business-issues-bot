@@ -135,22 +135,8 @@ async def update_user_activity(user_id: int):
     """
     async with create_session() as session:
         try:
-            # Получаем пользователя
-            user_stmt = select(User).where(User.user_id == user_id)
-            user = (await session.execute(user_stmt)).scalar_one_or_none()
-
-            if not user:
-                return
-
             now = datetime.utcnow()
             today = now.date()
-
-            # Проверяем, был ли пользователь активен сегодня
-            if user.last_active_date.date() != today:
-                user.active_days += 1
-                user.last_active_date = now
-
-            user.last_activity = now
 
             # Получаем или создаем запись активности за сегодня
             activity_stmt = select(UserActivity).where(
@@ -159,30 +145,51 @@ async def update_user_activity(user_id: int):
             activity = (await session.execute(activity_stmt)).scalar_one_or_none()
 
             if not activity:
-                activity = UserActivity(date=now)
+                activity = UserActivity(
+                    date=now,
+                    daily_active_users=1,
+                    daily_surveys=0,
+                    weekly_active_users=1,
+                    weekly_surveys=0,
+                    monthly_active_users=1,
+                    monthly_surveys=0,
+                )
                 session.add(activity)
+            else:
+                # Проверяем, не учтен ли уже этот пользователь сегодня
+                user_today = await session.execute(
+                    select(User).where(
+                        and_(
+                            User.user_id == user_id,
+                            func.date(User.last_activity) == today,
+                        )
+                    )
+                )
+                if not user_today.scalar_one_or_none():
+                    activity.daily_active_users += 1
 
             # Обновляем статистику
-            # Получаем количество активных пользователей
             day_ago = now - timedelta(days=1)
             week_ago = now - timedelta(days=7)
             month_ago = now - timedelta(days=30)
 
-            daily_users = await session.execute(
-                select(func.count(User.user_id)).where(User.last_activity >= day_ago)
-            )
+            # Получаем количество активных пользователей
             weekly_users = await session.execute(
-                select(func.count(User.user_id)).where(User.last_activity >= week_ago)
+                select(func.count(User.user_id)).where(
+                    and_(User.last_activity >= week_ago, User.last_activity <= now)
+                )
             )
             monthly_users = await session.execute(
-                select(func.count(User.user_id)).where(User.last_activity >= month_ago)
+                select(func.count(User.user_id)).where(
+                    and_(User.last_activity >= month_ago, User.last_activity <= now)
+                )
             )
 
             # Получаем количество завершенных опросов
             daily_surveys = await session.execute(
                 select(func.count(UserSurvey.id)).where(
                     and_(
-                        UserSurvey.created_at >= day_ago,
+                        func.date(UserSurvey.created_at) == today,
                         UserSurvey.survey_completed == True,
                     )
                 )
@@ -191,6 +198,7 @@ async def update_user_activity(user_id: int):
                 select(func.count(UserSurvey.id)).where(
                     and_(
                         UserSurvey.created_at >= week_ago,
+                        UserSurvey.created_at <= now,
                         UserSurvey.survey_completed == True,
                     )
                 )
@@ -199,24 +207,25 @@ async def update_user_activity(user_id: int):
                 select(func.count(UserSurvey.id)).where(
                     and_(
                         UserSurvey.created_at >= month_ago,
+                        UserSurvey.created_at <= now,
                         UserSurvey.survey_completed == True,
                     )
                 )
             )
 
             # Обновляем статистику
-            activity.daily_active_users = daily_users.scalar()
-            activity.weekly_active_users = weekly_users.scalar()
-            activity.monthly_active_users = monthly_users.scalar()
-            activity.daily_surveys = daily_surveys.scalar()
-            activity.weekly_surveys = weekly_surveys.scalar()
-            activity.monthly_surveys = monthly_surveys.scalar()
+            activity.weekly_active_users = weekly_users.scalar() or 1
+            activity.monthly_active_users = monthly_users.scalar() or 1
+            activity.daily_surveys = daily_surveys.scalar() or 0
+            activity.weekly_surveys = weekly_surveys.scalar() or 0
+            activity.monthly_surveys = monthly_surveys.scalar() or 0
 
             await session.commit()
             await write_logs("info", f"Updated activity statistics for user {user_id}")
 
         except Exception as e:
             await write_logs("error", f"Error updating user activity: {str(e)}")
+            await session.rollback()
 
 
 async def get_or_create_user(user_id: int, username: str) -> User:
@@ -268,6 +277,9 @@ async def finalize_survey(user_id: int, username: str) -> Optional[str]:
     """
     async with create_session() as session:
         try:
+            now = datetime.utcnow()
+            today = now.date()
+
             # Получаем данные опроса пользователя
             stmt = (
                 select(UserSurvey)
@@ -282,17 +294,44 @@ async def finalize_survey(user_id: int, username: str) -> Optional[str]:
             if survey:
                 # Отмечаем опрос как завершенный
                 survey.survey_completed = True
+                survey.completed_at = now
 
                 # Получаем и обновляем пользователя
                 user_stmt = select(User).where(User.user_id == user_id)
                 user = (await session.execute(user_stmt)).scalar_one_or_none()
                 if user:
                     user.survey_completed = True
-                    user.last_activity = datetime.utcnow()
+                    user.last_activity = now
 
                     # Обновляем счетчик дней активности
-                    if (datetime.utcnow() - user.last_activity).days >= 1:
+                    if (
+                        not user.last_active_date
+                        or user.last_active_date.date() != today
+                    ):
                         user.active_days += 1
+                        user.last_active_date = now
+
+                # Получаем или создаем запись активности за сегодня
+                activity_stmt = select(UserActivity).where(
+                    func.date(UserActivity.date) == today
+                )
+                activity = (await session.execute(activity_stmt)).scalar_one_or_none()
+
+                if activity:
+                    # Увеличиваем счетчик опросов за день
+                    activity.daily_surveys += 1
+                else:
+                    # Создаем новую запись активности
+                    activity = UserActivity(
+                        date=now,
+                        daily_active_users=1,
+                        daily_surveys=1,
+                        weekly_active_users=1,
+                        weekly_surveys=1,
+                        monthly_active_users=1,
+                        monthly_surveys=1,
+                    )
+                    session.add(activity)
 
                 await session.commit()
 
@@ -302,10 +341,11 @@ async def finalize_survey(user_id: int, username: str) -> Optional[str]:
                 )
                 return user_results
 
-            return None  # Если опрос не найден
+            return None
 
         except Exception as e:
             await write_logs("error", f"Error finalizing survey: {str(e)}")
+            await session.rollback()
             return None
 
 

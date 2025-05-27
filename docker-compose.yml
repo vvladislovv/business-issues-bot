@@ -39,9 +39,10 @@ services:
     networks:
       - bot_network
 
+
 networks:
   bot_network:
     driver: bridge
 
 volumes:
-  mysql_data: 
+  mysql_data:

@@ -2,9 +2,12 @@ from src.database.settings_data import create_session, Localization
 from sqlalchemy import select
 from typing import Dict, Optional
 from src.utils.logging import write_logs
+import time
 
 # Cache for storing messages
 _message_cache: Dict[str, Dict[str, Dict[str, str]]] = {}
+_last_cache_update = 0
+CACHE_TTL = 60  # 1 minute in seconds
 
 
 async def _init_messages():
@@ -22,6 +25,19 @@ async def _init_messages():
                 _message_cache[msg.language][msg.category][msg.key] = msg.message
 
 
+async def _refresh_cache():
+    """Refresh the message cache from database."""
+    global _last_cache_update
+    _message_cache.clear()
+    await _init_messages()
+    _last_cache_update = time.time()
+
+
+async def _should_refresh_cache() -> bool:
+    """Check if cache should be refreshed based on TTL."""
+    return time.time() - _last_cache_update > CACHE_TTL
+
+
 async def get_message(key: str, language: str = "ru", category: str = "system") -> str:
     """Get a localized message by key and language.
 
@@ -33,8 +49,8 @@ async def get_message(key: str, language: str = "ru", category: str = "system") 
     Returns:
         str: Localized message or key if not found
     """
-    if not _message_cache:
-        await _init_messages()
+    if not _message_cache or await _should_refresh_cache():
+        await _refresh_cache()
 
     return _message_cache.get(language, {}).get(category, {}).get(key, key)
 

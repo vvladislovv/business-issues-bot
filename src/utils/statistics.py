@@ -23,7 +23,7 @@ async def get_time_based_statistics() -> Optional[Dict]:
                 func.date(UserActivity.date) == today
             )
             activity = (await session.execute(activity_stmt)).scalar_one_or_none()
-
+            print(activity)
             if not activity:
                 # Если статистики нет, возвращаем нулевые значения
                 return {

@@ -16,13 +16,13 @@ from aiogram.types import (
     InlineKeyboardButton,
     MessageEntity,
 )
-from src.utils.statistics import (
-    get_time_based_statistics,
-    generate_time_statistics_excel,
-)
 from src.utils.user_statistics import (
     get_user_statistics,
     generate_user_statistics_excel,
+)
+from src.utils.statistics import (
+    get_time_based_statistics,
+    generate_time_statistics_excel,
 )
 from src.database.using_data import get_all_users
 

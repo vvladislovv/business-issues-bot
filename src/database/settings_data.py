@@ -157,7 +157,7 @@ async def init_db():
     try:
         async with engine.begin() as conn:
             # Удалить все таблицы
-            ##await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.drop_all)
             # Создать все таблицы
             await conn.run_sync(Base.metadata.create_all)
             await write_logs("info", "Таблицы базы данных успешно созданы")
