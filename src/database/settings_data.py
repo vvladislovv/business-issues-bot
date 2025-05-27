@@ -85,8 +85,8 @@ class UserSurvey(Base):
     Атрибуты:
         id (int): Уникальный идентификатор ответа на опрос.
         user_id (int): Внешний ключ, ссылающийся на пользователя.
-        region (str): Регион пользователя.
         has_business (str): Указывает, есть ли у пользователя бизнес.
+        region (str): Регион пользователя.
         is_under_25 (str): Указывает, младше ли пользователь 25 лет.
         has_experience (str): Указывает, есть ли у пользователя опыт в бизнесе.
         official_income (str): Официальный доход пользователя.
@@ -104,8 +104,8 @@ class UserSurvey(Base):
 
     id = mapped_column(Integer, primary_key=True)
     user_id = mapped_column(BigInteger, ForeignKey("users.user_id"))
-    region = mapped_column(String(255), nullable=True)
     has_business = mapped_column(String(255), nullable=True)
+    region = mapped_column(String(255), nullable=True)
     is_under_25 = mapped_column(String(255), nullable=True)
     has_experience = mapped_column(String(255), nullable=True)
     official_income = mapped_column(String(255), nullable=True)
@@ -157,7 +157,7 @@ async def init_db():
     try:
         async with engine.begin() as conn:
             # Удалить все таблицы
-            await conn.run_sync(Base.metadata.drop_all)
+            # await conn.run_sync(Base.metadata.drop_all)
             # Создать все таблицы
             await conn.run_sync(Base.metadata.create_all)
             await write_logs("info", "Таблицы базы данных успешно созданы")

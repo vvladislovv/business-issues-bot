@@ -29,13 +29,13 @@ async def general_main_survey(call: CallbackQuery, state: FSMContext) -> None:
     """
     try:
         # Получаем первый вопрос
-        first_question = QUESTIONS.get("region")
+        first_question = QUESTIONS.get("has_business")
         if not first_question:
             raise ValueError("First question not found")
 
         # Устанавливаем состояние опроса
         await state.set_state(SurveyStates.ANSWERING)
-        await state.update_data(current_question="region")
+        await state.update_data(current_question="has_business")
 
         # Получаем текст вопроса
         question_text = await first_question.get_text()

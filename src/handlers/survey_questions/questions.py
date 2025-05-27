@@ -18,9 +18,6 @@ class Question:
 
 QUESTIONS: Dict[str, Question] = {
     # Block 1: Diagnostics
-    "region": Question(
-        key="question_region", field_name="region", next_question="has_business"
-    ),
     "has_business": Question(
         key="question_has_business",
         field_name="has_business",
@@ -37,11 +34,20 @@ QUESTIONS: Dict[str, Question] = {
         key="question_has_experience",
         field_name="has_experience",
         options=["Да", "Нет"],
-        next_question="official_income",
+        next_question="region",
+    ),
+    "region": Question(
+        key="question_region", field_name="region", next_question="official_income"
     ),
     "official_income": Question(
         key="question_official_income",
         field_name="official_income",
+        options=[
+            "Меньше 50.000",
+            "50.000-100.000",
+            "100.000-250.000",
+            "250.000+",
+        ],
         next_question="work_plan",
     ),
     "work_plan": Question(

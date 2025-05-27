@@ -144,10 +144,10 @@ async def init_default_messages():
 
         # Questions
         question_messages = {
-            "question_region": "В каком ты регионе?",
             "question_has_business": "Есть ли у тебя ИП/Самозанятость?",
             "question_is_under_25": "Ты младше 25 лет?",
             "question_has_experience": "Есть ли у тебя опыт или навыки в сфере будущего бизнеса?",
+            "question_region": "В каком ты регионе?",
             "question_official_income": "Какой у тебя сейчас официальный доход? (переводы на карту не считаются)",
             "question_work_plan": "Планируешь ли ты работать один или нанимать сотрудников?",
             "question_micro_result": "Можно какой-то микрорезультат дать, чтобы проще было дойти до конца вопросов",
