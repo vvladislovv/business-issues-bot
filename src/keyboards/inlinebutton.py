@@ -6,6 +6,8 @@ from aiogram.utils.keyboard import (
 from src.utils.logging import write_logs
 from aiogram.types import InlineKeyboardButton as TypesInlineKeyboardButton
 from aiogram.types import Message
+from typing import List, Optional
+from src.config.config import settings  # Импортируем settings
 
 
 async def get_general_menu() -> InlineKeyboardMarkup:
@@ -91,18 +93,33 @@ async def get_final_keyboard() -> InlineKeyboardMarkup:
     buttons = [
         [
             InlineKeyboardButton(
-                text="1️⃣ Начать подготовку заявки", callback_data="start_preparation"
+                text="1️⃣ Начать подготовку документов",
+                url=settings.config.start_preparation_url,
             )
         ],
         [InlineKeyboardButton(text="2️⃣ Забрать гайд", callback_data="get_guide")],
         [
             InlineKeyboardButton(
-                text="3️⃣ Связаться с экспертом", callback_data="contact_expert"
+                text="3️⃣ Связаться с экспертом", url=settings.config.contact_expert_url
             )
         ],
-        [InlineKeyboardButton(text="4️⃣ FAQ", url="https://telegra.ph/test-bot-05-23-2")],
+        [InlineKeyboardButton(text="4️⃣ FAQ", url=settings.config.faq_url)],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+async def get_continue_keyboard() -> InlineKeyboardMarkup:
+    """Создает клавиатуру с кнопкой продолжения опроса."""
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Продолжить оценку шансов", callback_data="continue_survey"
+                )
+            ]
+        ]
+    )
+    return keyboard
 
 
 async def new_message(

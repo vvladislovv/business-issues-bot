@@ -16,6 +16,24 @@ class Question:
         return await get_message(self.key, category="questions")
 
 
+# Удаляем класс MicroResultQuestion
+# class MicroResultQuestion(Question):
+#     def __init__(self):
+#         super().__init__(
+#             key="question_micro_result",
+#             field_name="micro_result",
+#             next_question="region",
+#             options=["Да", "Нет"],
+#             is_last=False,
+#         )
+
+#     async def get_text(self) -> str:
+#         return (
+#             "✨ Отлично! Судя по твоим ответам, у тебя есть все шансы получить субсидию!\n\n"
+#             "Осталось всего 2 вопроса, и ты узнаешь точный результат. Продолжаем? 😊"
+#         )
+
+
 QUESTIONS: Dict[str, Question] = {
     # Block 1: Diagnostics
     "has_business": Question(
@@ -54,13 +72,10 @@ QUESTIONS: Dict[str, Question] = {
         key="question_work_plan",
         field_name="work_plan",
         options=["Один", "Нанимать сотрудников"],
-        next_question="micro_result",
+        next_question="subsidy_interest",  # Изменено с "micro_result" на "subsidy_interest"
     ),
-    "micro_result": Question(
-        key="question_micro_result",
-        field_name="micro_result",
-        next_question="subsidy_interest",
-    ),
+    # Удаляем запись "micro_result"
+    # "micro_result": MicroResultQuestion(),
     # Block 2: Qualification
     "subsidy_interest": Question(
         key="question_subsidy_interest",

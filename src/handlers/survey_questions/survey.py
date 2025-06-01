@@ -1,5 +1,5 @@
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from src.config.config import settings
@@ -15,8 +15,10 @@ from src.keyboards.inlinebutton import (
     new_message,
     get_keyboard,
     get_general_menu,
+    get_continue_keyboard,
 )
 from src.utils.localization import get_message
+import os
 
 
 router = Router()
@@ -24,6 +26,7 @@ router = Router()
 
 class SurveyStates(StatesGroup):
     ANSWERING = State()
+    MID_SURVEY = State()
 
 
 async def get_final_survey_message(user_id: int) -> str:
@@ -126,6 +129,15 @@ async def process_survey_answer(callback: CallbackQuery, state: FSMContext):
 
         await callback.message.edit_reply_markup(reply_markup=None)
 
+        # Check if we're at the mid-point of the survey
+        if current_question_id == "work_plan":  # This is the mid-point question
+            await state.set_state(SurveyStates.MID_SURVEY)
+            await callback.message.answer(
+                await get_message("mid_survey", category="survey"),
+                reply_markup=await get_continue_keyboard(),
+            )
+            return
+
         if current_question.is_last:
             user_results = await finalize_survey(
                 callback.from_user.id, callback.from_user.username
@@ -136,8 +148,11 @@ async def process_survey_answer(callback: CallbackQuery, state: FSMContext):
                 )
 
             final_message = await get_final_survey_message(callback.from_user.id)
-            await callback.message.answer(
-                final_message, reply_markup=await get_final_keyboard()
+            # Отправляем фото с финальным сообщением
+            await callback.message.answer_photo(
+                photo=FSInputFile("./content/final.JPG"),
+                caption=final_message,
+                reply_markup=await get_final_keyboard(),
             )
             await state.clear()
         else:
@@ -157,8 +172,47 @@ async def process_survey_answer(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
 
 
+@router.callback_query(SurveyStates.MID_SURVEY, F.data == "continue_survey")
+async def continue_survey(callback: CallbackQuery, state: FSMContext):
+    """Обрабатывает продолжение опроса после mid-survey сообщения."""
+    try:
+        # Устанавливаем состояние обратно в ANSWERING
+        await state.set_state(SurveyStates.ANSWERING)
+
+        # Получаем следующий вопрос после work_plan (который вызвал mid-survey)
+        # Следующий вопрос после work_plan теперь subsidy_interest
+        next_question_id = QUESTIONS["work_plan"].next_question
+
+        if next_question_id not in QUESTIONS:
+            await write_logs(
+                "error",
+                f"Next question ID {next_question_id} not found in QUESTIONS after mid-survey.",
+            )
+            await callback.message.answer(await get_message("error_survey"))
+            await callback.answer()
+            return
+
+        next_question = QUESTIONS[next_question_id]
+
+        # Обновляем текущий вопрос в состоянии
+        await state.update_data(current_question=next_question_id)
+
+        # Отправляем следующий вопрос
+        question_text = await next_question.get_text()
+        await callback.message.answer(
+            question_text, reply_markup=await get_keyboard(next_question.options)
+        )
+
+        await callback.answer()
+
+    except Exception as e:
+        await write_logs("error", f"Error in continue_survey: {str(e)}")
+        await callback.message.answer(await get_message("error_survey"))
+        await callback.answer()
+
+
 @router.callback_query(
-    F.data.in_(["start_preparation", "get_guide", "contact_expert", "faq"])
+    F.data.in_(["start_preparation", "contact_expert", "faq"])
 )
 async def process_final_choice(callback: CallbackQuery):
     """
@@ -186,4 +240,40 @@ async def process_final_choice(callback: CallbackQuery):
     except Exception as e:
         await write_logs("error", f"Error in process_final_choice: {str(e)}")
         await callback.message.answer(await get_message("error_survey"))
+        await callback.answer()
+
+
+@router.callback_query(F.data == "get_guide")
+async def send_guide(callback: CallbackQuery):
+    """Отправляет PDF гайд пользователю."""
+    try:
+        await write_logs(
+            "info",
+            f"Attempting to send guide to user {callback.from_user.id} from send_guide handler.",
+        )
+
+        # Проверяем существование файла, используя абсолютный путь для Docker
+        file_path = "/app/content/guide.pdf"
+        if not os.path.exists(file_path):
+            await write_logs("error", f"Guide file not found at {file_path}")
+            await callback.message.answer("Извините, файл гайда временно недоступен.")
+            await callback.answer()
+            return
+
+        # Отправляем PDF файл
+        await callback.message.answer_document(
+            document=FSInputFile(file_path),
+            caption="📚 Ваш гайд по получению субсидии",
+        )
+        await write_logs(
+            "info", f"Guide successfully sent to user {callback.from_user.id}"
+        )
+        await callback.answer()
+
+    except Exception as e:
+        error_msg = f"Error sending guide to user {callback.from_user.id}: {str(e)}"
+        await write_logs("error", error_msg)
+        await callback.message.answer(
+            "Произошла ошибка при отправке гайда. Пожалуйста, попробуйте позже."
+        )
         await callback.answer()
