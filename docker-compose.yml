@@ -39,19 +39,7 @@ services:
     networks:
       - bot_network
 
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin
-    container_name: survey_phpmyadmin
-    restart: always
-    environment:
-      PMA_HOST: db
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-    ports:
-      - "8080:80"
-    depends_on:
-      - db
-    networks:
-      - bot_network
+
 
 networks:
   bot_network:

@@ -90,22 +90,22 @@ async def get_final_keyboard() -> InlineKeyboardMarkup:
     Returns:
         InlineKeyboardMarkup: Клавиатура с финальными кнопками.
     """
-    buttons = [
+    keyboard = [
         [
             InlineKeyboardButton(
                 text="1️⃣ Начать подготовку документов",
-                url=settings.config.start_preparation_url,
+                url="https://t.me/m/8gFn5qRNNDAx",
             )
         ],
         [InlineKeyboardButton(text="2️⃣ Забрать гайд", callback_data="get_guide")],
         [
             InlineKeyboardButton(
-                text="3️⃣ Связаться с экспертом", url=settings.config.contact_expert_url
+                text="3️⃣ Связаться с экспертом", url="https://t.me/m/BNGFmpukZWUx"
             )
         ],
-        [InlineKeyboardButton(text="4️⃣ FAQ", url=settings.config.faq_url)],
+        [InlineKeyboardButton(text="4️⃣ FAQ", url="https://telegra.ph/test-bot-05-23-2")],
     ]
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
 async def get_continue_keyboard() -> InlineKeyboardMarkup:

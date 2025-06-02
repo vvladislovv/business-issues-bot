@@ -117,6 +117,7 @@ async def process_survey_answer(callback: CallbackQuery, state: FSMContext):
         current_question_id = data.get("current_question")
 
         if not current_question_id:
+            await write_logs("error", "No current question ID found in state")
             await state.clear()
             await callback.message.answer(await get_message("error_survey"))
             return
@@ -139,22 +140,44 @@ async def process_survey_answer(callback: CallbackQuery, state: FSMContext):
             return
 
         if current_question.is_last:
-            user_results = await finalize_survey(
-                callback.from_user.id, callback.from_user.username
-            )
-            if user_results and settings.config.channel_id:
-                await callback.message.chat.bot.send_message(
-                    settings.config.channel_id, user_results
+            try:
+                user_results = await finalize_survey(
+                    callback.from_user.id, callback.from_user.username
                 )
+                if user_results and settings.config.channel_id:
+                    await callback.message.chat.bot.send_message(
+                        settings.config.channel_id, user_results
+                    )
 
-            final_message = await get_final_survey_message(callback.from_user.id)
-            # Отправляем фото с финальным сообщением
-            await callback.message.answer_photo(
-                photo=FSInputFile("./content/final.JPG"),
-                caption=final_message,
-                reply_markup=await get_final_keyboard(),
-            )
-            await state.clear()
+                final_message = await get_final_survey_message(callback.from_user.id)
+
+                # Check if the final image exists
+                final_image_path = "./content/final.JPG"
+                if not os.path.exists(final_image_path):
+                    await write_logs(
+                        "error", f"Final image not found at {final_image_path}"
+                    )
+                    # Send message without image if image is missing
+                    await callback.message.answer(
+                        "final_message",
+                        reply_markup=await get_final_keyboard(),
+                    )
+                else:
+                    # Send message with image
+                    await callback.message.answer_photo(
+                        photo=FSInputFile(final_image_path),
+                        caption=final_message,
+                        reply_markup=await get_final_keyboard(),
+                    )
+
+                await state.clear()
+                await write_logs(
+                    "info",
+                    f"Survey completed successfully for user {callback.from_user.id}",
+                )
+            except Exception as e:
+                await write_logs("error", f"Error in survey completion: {str(e)}")
+                await callback.message.answer(await get_message("error_survey"))
         else:
             next_question = QUESTIONS[current_question.next_question]
             await state.update_data(current_question=current_question.next_question)
@@ -211,9 +234,7 @@ async def continue_survey(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
 
 
-@router.callback_query(
-    F.data.in_(["start_preparation", "contact_expert", "faq"])
-)
+@router.callback_query(F.data.in_(["start_preparation", "contact_expert", "faq"]))
 async def process_final_choice(callback: CallbackQuery):
     """
     Обрабатывает выбор финальных действий после завершения опроса.
@@ -227,20 +248,24 @@ async def process_final_choice(callback: CallbackQuery):
     try:
         responses = {
             "start_preparation": await get_message("start_preparation"),
-            "get_guide": await get_message("get_guide"),
             "contact_expert": await get_message("contact_expert"),
             "faq": await get_message("faq"),
         }
 
-        await new_message(
-            callback.message, responses[callback.data], await get_general_menu()
-        )
-        await callback.answer()
+        if callback.data in responses:
+            await new_message(
+                callback.message, responses[callback.data], await get_general_menu()
+            )
+        else:
+            await write_logs(
+                "warning",
+                f"Unexpected callback data in process_final_choice: {callback.data}",
+            )
+            await callback.answer()
 
     except Exception as e:
         await write_logs("error", f"Error in process_final_choice: {str(e)}")
         await callback.message.answer(await get_message("error_survey"))
-        await callback.answer()
 
 
 @router.callback_query(F.data == "get_guide")
@@ -252,8 +277,8 @@ async def send_guide(callback: CallbackQuery):
             f"Attempting to send guide to user {callback.from_user.id} from send_guide handler.",
         )
 
-        # Проверяем существование файла, используя абсолютный путь для Docker
-        file_path = "/app/content/guide.pdf"
+        # Проверяем существование файла
+        file_path = "./content/guide.pdf"
         if not os.path.exists(file_path):
             await write_logs("error", f"Guide file not found at {file_path}")
             await callback.message.answer("Извините, файл гайда временно недоступен.")
