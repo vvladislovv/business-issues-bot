@@ -40,7 +40,6 @@ services:
       - bot_network
 
 
-
 networks:
   bot_network:
     driver: bridge

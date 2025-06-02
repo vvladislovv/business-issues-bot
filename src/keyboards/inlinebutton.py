@@ -21,7 +21,7 @@ async def get_general_menu() -> InlineKeyboardMarkup:
         [
             TypesInlineKeyboardButton(text="📝 Пройти опрос", callback_data="Survey"),
             TypesInlineKeyboardButton(
-                text="❓ FAQ", url="https://telegra.ph/test-bot-05-23-2"
+                text="❓ FAQ", url="https://telegra.ph/CHasto-zadavaemye-voprosy-FAQ-06-02"
             ),
         ],
     ]
@@ -103,7 +103,7 @@ async def get_final_keyboard() -> InlineKeyboardMarkup:
                 text="3️⃣ Связаться с экспертом", url="https://t.me/m/BNGFmpukZWUx"
             )
         ],
-        [InlineKeyboardButton(text="4️⃣ FAQ", url="https://telegra.ph/test-bot-05-23-2")],
+        [InlineKeyboardButton(text="4️⃣ FAQ", url="https://telegra.ph/CHasto-zadavaemye-voprosy-FAQ-06-02")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
